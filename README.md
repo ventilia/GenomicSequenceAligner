@@ -139,7 +139,33 @@ Below are examples of commands for various usage scenarios. File paths are relat
    python -m aligner.cli --input1 "data/test_multi.fasta" --mode msa --clustal
 
 
+# Guide to Downloading FASTA Files from NCBI and Searching for Desired Sequences
 
+## 1. Accessing the NCBI website and searching for the desired sequence
+
+**Step 1**: Open your browser and go to the NCBI homepage ([https://www.ncbi.nlm.nih.gov/](https://www.ncbi.nlm.nih.gov/)).
+
+**Step 2**: At the top of the page, there is a search bar. Here you can:
+- Enter the accession number (a unique identifier for the sequence), for example, `U00096.2`, if you know it.
+- Or use keywords, such as the name of the organism or gene (e.g., "Escherichia coli genome"), if you don't have the exact identifier.
+
+**Step 3**: Click "Search". If you entered the accession number, you will be taken directly to the page with information about the sequence. If you used keywords, a list of results will appear — select the desired one by clicking on the corresponding link.
+
+## 2. Navigating to the FASTA format
+
+**Step 1**: On the sequence page (for example, [https://www.ncbi.nlm.nih.gov/nuccore/U00096.2](https://www.ncbi.nlm.nih.gov/nuccore/U00096.2)), find the link or button labeled "FASTA". It is usually located at the top or in the "Sequence" section.
+
+**Step 2**: Click on "FASTA". This will redirect you to a page with the sequence text in FASTA format.
+
+## 3. Downloading the FASTA file
+
+**Step 1**: Find the "Send to" button (usually in the upper right corner).
+
+**Step 2**: In the dropdown menu, select:
+- "File" — to download the file.
+- In the "Format" section, choose "FASTA".
+
+**Step 3**: Click "Create File". Your browser will start downloading the file with a `.fasta` or `.fa` extension.
 
 ## Genomic Sequence Aligner РУ
 
@@ -311,3 +337,38 @@ python -m aligner.cli [options]
 - **Детальный лог**: Помогает в отладке и анализе работы программы.
 
 ## В ближайшем будущем добавлю UI
+
+
+
+# Гайд по скачиванию FASTA-файлов с сайта NCBI и поиску нужных последовательностей
+
+## 1. Переход на сайт NCBI и поиск нужной последовательности
+
+**Шаг 1**: Откройте браузер и перейдите на главную страницу NCBI ([https://www.ncbi.nlm.nih.gov/](https://www.ncbi.nlm.nih.gov/)).
+
+**Шаг 2**: В верхней части страницы находится строка поиска. Здесь вы можете:
+- Ввести *accession number* (уникальный идентификатор последовательности), например, `U00096.2`, если он вам известен.
+- Или использовать ключевые слова, такие как название организма или гена (например, "Escherichia coli genome"), если точного идентификатора нет.
+
+**Шаг 3**: Нажмите "Search". Если вы ввели *accession number*, вы сразу попадете на страницу с информацией о последовательности. Если использовали ключевые слова, появится список результатов — выберите нужный, нажав на соответствующую ссылку.
+
+## 2. Навигация к FASTA-формату
+
+После того как вы нашли страницу последовательности, нужно перейти к её представлению в формате FASTA.
+
+**Шаг 1**: На странице последовательности (например, [https://www.ncbi.nlm.nih.gov/nuccore/U00096.2](https://www.ncbi.nlm.nih.gov/nuccore/U00096.2)) найдите ссылку или кнопку с надписью "FASTA". Она обычно расположена вверху или в разделе "Sequence".
+
+**Шаг 2**: Нажмите на "FASTA". Это перенаправит вас на страницу с текстом последовательности в FASTA-формате.
+
+## 3. Скачивание FASTA-файла
+
+Теперь, когда вы на странице с FASTA-форматом, можно скачать файл на свой компьютер.
+
+**Шаг 1**: Найдите кнопку "Send to" (обычно в правом верхнем углу).
+
+**Шаг 2**: В выпадающем меню выберите:
+- "File" — чтобы скачать файл.
+- В разделе "Format" выберите "FASTA".
+
+**Шаг 3**: Нажмите "Create File". Браузер начнет загрузку файла с расширением `.fasta` или `.fa`.
+

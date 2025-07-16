@@ -92,7 +92,7 @@ def main():
     parent_parser.add_argument('--lang', default='en', choices=['en', 'ru'], help=tr['lang'])
 
     parser = argparse.ArgumentParser(description=tr['description'])
-    subparsers = parser.add_subparsers(dest='mode', required=True)
+    subparsers = parser.add_subparsers(dest='mode', required=False)  # Changed to False to allow no mode
 
     global_parser = subparsers.add_parser('global', parents=[parent_parser])
     global_parser.add_argument("--input1", required=True, help=tr['input1'])
@@ -107,7 +107,15 @@ def main():
     msa_parser.add_argument("--clustal", action="store_true", help=tr['clustal'])
     msa_parser.add_argument("--threads", type=int, default=os.cpu_count(), help=tr['threads'])
 
-    args = parser.parse_args()
+    # Parse remaining args with the full parser
+    args = parser.parse_args(remaining)
+    # Set lang from early parse (overrides default if specified)
+    args.lang = lang
+
+    # If no mode provided, show help and exit
+    if not args.mode:
+        parser.print_help()
+        sys.exit(0)
 
     if args.verbose:
         logging.getLogger().setLevel(logging.DEBUG)

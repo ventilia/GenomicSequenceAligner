@@ -22,12 +22,8 @@ def dummy_fasta():
             os.remove(f)
     if os.path.exists("test_dir"):
         os.rmdir("test_dir")
-    if os.path.exists("test_out.txt"):
-        os.remove("test_out.txt")
-    if os.path.exists("test_msa.txt"):
-        os.remove("test_msa.txt")
-    if os.path.exists("test_out.yaml"):
-        os.remove("test_out.yaml")
+    if os.path.exists("alignment.txt"):
+        os.remove("alignment.txt")
     if os.path.exists("config.yaml"):
         os.remove("config.yaml")
 
@@ -38,7 +34,7 @@ def test_cli_wizard_global(dummy_fasta):
     child.sendline("en")
     child.expect("Choose mode")
     child.sendline("global")
-    child.expect("Batch mode")
+    child.expect("Run batch mode")
     child.sendline("n")
     child.expect("Select directory")
     child.sendline("test_dir")
@@ -46,50 +42,65 @@ def test_cli_wizard_global(dummy_fasta):
     child.sendline("test1.fasta")
     child.expect("Select FASTA file for input2")
     child.sendline("test2.fasta")
-    for _ in range(8):  # остальные параметры: matrix, match, mismatch, gap, gap_open, gap_extend, subsample, verbose, output
+    for _ in range(8):  # параметры
         child.sendline("")
-    child.expect("Preview first 100 bases")
+    child.expect("Verbose logging")
+    child.sendline("n")
+    child.expect("Preview first 100 bp")
     child.sendline("y")
     child.expect("Run tutorial")
     child.sendline("n")
+    child.expect("Output file")
+    child.sendline("")
     child.expect("Load config")
     child.sendline("n")
-    child.expect("Save current parameters")
+    child.expect("Save current params")
     child.sendline("n")
-    child.expect("Alignment completed successfully")
+    child.expect("Run with these params")
+    child.sendline("y")
+    child.expect("Success")
     child.close()
     assert os.path.exists("alignment.txt")
     with open("alignment.txt", "r") as f:
         content = f.read()
         assert "Score" in content
         assert "Identity" in content
-        assert "Gaps" in content
     os.remove("alignment.txt")
 
 def test_cli_wizard_msa(dummy_fasta):
-    # тест интерактивного режима для msa
+    # тест для msa
     child = pexpect.spawn(sys.executable, ["-m", "aligner.cli"])
     child.expect("Choose language")
     child.sendline("ru")
     child.expect("Выберите режим")
     child.sendline("msa")
-    child.expect("Запустить batch")
+    child.expect("Run batch mode")
     child.sendline("n")
-    child.expect("Выберите директорию")
+    child.expect("Select directory")
     child.sendline("test_dir")
-    child.expect("Выберите FASTA-файл для input1")
+    child.expect("Select FASTA file for input1")
     child.sendline("test_multi.fasta")
-    for _ in range(8):  # matrix, match, mismatch, gap, gap_open, gap_extend, subsample, threads, clustal, verbose
+    for _ in range(8):
         child.sendline("")
-    child.expect("Предпросмотр")
+    child.expect("Threads for MSA")
+    child.sendline("")
+    child.expect("Clustal format for MSA")
     child.sendline("n")
-    child.expect("Запустить tutorial")
+    child.expect("Verbose logging")
     child.sendline("n")
-    child.expect("Загрузить конфигурацию")
+    child.expect("Preview first 100 bp")
     child.sendline("n")
-    child.expect("Сохранить текущие параметры")
+    child.expect("Run tutorial")
     child.sendline("n")
-    child.expect("Выравнивание успешно завершено")
+    child.expect("Output file")
+    child.sendline("")
+    child.expect("Load config")
+    child.sendline("n")
+    child.expect("Save current params")
+    child.sendline("n")
+    child.expect("Run with these params")
+    child.sendline("y")
+    child.expect("Успех")
     child.close()
     assert os.path.exists("alignment.txt")
     with open("alignment.txt", "r") as f:
@@ -98,46 +109,48 @@ def test_cli_wizard_msa(dummy_fasta):
     os.remove("alignment.txt")
 
 def test_cli_batch_mode(dummy_fasta):
-    # тест batch-режима
+    # тест batch
     child = pexpect.spawn(sys.executable, ["-m", "aligner.cli"])
     child.expect("Choose language")
     child.sendline("en")
     child.expect("Choose mode")
     child.sendline("global")
-    child.expect("Batch mode")
+    child.expect("Run batch mode")
     child.sendline("y")
     child.expect("Select directory")
     child.sendline("test_dir")
-    for _ in range(6):  # matrix, match, mismatch, gap, gap_open, gap_extend, subsample
+    for _ in range(8):
         child.sendline("")
     child.expect("Verbose logging")
     child.sendline("n")
-    child.expect("Output file")
-    child.sendline("batch_out.txt")
-    child.expect("Preview")
+    child.expect("Preview first 100 bp")
     child.sendline("n")
     child.expect("Run tutorial")
     child.sendline("n")
+    child.expect("Output file")
+    child.sendline("")
     child.expect("Load config")
     child.sendline("n")
-    child.expect("Save current parameters")
+    child.expect("Save current params")
     child.sendline("n")
-    child.expect("Alignment completed successfully")
+    child.expect("Run with these params")
+    child.sendline("y")
+    child.expect("Success")
     child.close()
-    assert os.path.exists("batch_out.txt")
-    with open("batch_out.txt", "r") as f:
+    assert os.path.exists("alignment.txt")
+    with open("alignment.txt", "r") as f:
         content = f.read()
         assert "test1.fasta vs test2.fasta" in content
-    os.remove("batch_out.txt")
+    os.remove("alignment.txt")
 
 def test_cli_config_load(dummy_fasta):
-    # тест загрузки конфига
+    # тест загрузки config
     child = pexpect.spawn(sys.executable, ["-m", "aligner.cli"])
     child.expect("Choose language")
     child.sendline("en")
     child.expect("Choose mode")
     child.sendline("global")
-    child.expect("Batch mode")
+    child.expect("Run batch mode")
     child.sendline("n")
     child.expect("Select directory")
     child.sendline("test_dir")
@@ -147,15 +160,21 @@ def test_cli_config_load(dummy_fasta):
     child.sendline("test2.fasta")
     for _ in range(8):
         child.sendline("")
-    child.expect("Preview")
+    child.expect("Verbose logging")
+    child.sendline("n")
+    child.expect("Preview first 100 bp")
     child.sendline("n")
     child.expect("Run tutorial")
     child.sendline("n")
+    child.expect("Output file")
+    child.sendline("")
     child.expect("Load config")
     child.sendline("test_dir/config.yaml")
-    child.expect("Save current parameters")
+    child.expect("Save current params")
     child.sendline("n")
-    child.expect("Alignment completed successfully")
+    child.expect("Run with these params")
+    child.sendline("y")
+    child.expect("Success")
     child.close()
     assert os.path.exists("test_out.yaml")
     with open("test_out.yaml", "r") as f:
@@ -164,21 +183,20 @@ def test_cli_config_load(dummy_fasta):
     os.remove("test_out.yaml")
 
 def test_cli_pairwise_flags(dummy_fasta):
-    # тест старого стиля флагов
+    # тест флагов для pairwise
     try:
-        run([sys.executable, "-m", "aligner.cli", "global", "--input1", "test_dir/test1.fasta", "--input2", "test_dir/test2.fasta",
-             "--output", "test_out.txt", "--lang", "ru"], check=True)
+        run([sys.executable, "-m", "aligner.cli", "global", "--input1", "test_dir/test1.fasta", "--input2", "test_dir/test2.fasta", "--output", "test_out.txt", "--lang", "ru"], check=True)
         assert os.path.exists("test_out.txt")
         with open("test_out.txt", "r") as f:
             content = f.read()
-            assert "Счет" in content or "Score" in content
-            assert "Идентичность" in content
+            assert "Score" in content or "Счет" in content
+            assert "Identity" in content or "Идентичность" in content
         os.remove("test_out.txt")
     except CalledProcessError as e:
         pytest.fail(f"CLI failed: {e}")
 
 def test_cli_msa_flags(dummy_fasta):
-    # тест msa с флагами
+    # тест флагов для msa
     try:
         run([sys.executable, "-m", "aligner.cli", "msa", "--input1", "test_dir/test_multi.fasta", "--output", "test_msa.txt", "--lang", "en"], check=True)
         assert os.path.exists("test_msa.txt")
@@ -189,18 +207,20 @@ def test_cli_msa_flags(dummy_fasta):
     except CalledProcessError as e:
         pytest.fail(f"CLI failed: {e}")
 
-def test_cli_error_handling():
-    # тест обработки ошибок
+def test_cli_error_handling(dummy_fasta):
+    # тест ошибок
     child = pexpect.spawn(sys.executable, ["-m", "aligner.cli"])
     child.expect("Choose language")
     child.sendline("en")
     child.expect("Choose mode")
     child.sendline("msa")
-    child.expect("Batch mode")
+    child.expect("Run batch mode")
     child.sendline("n")
     child.expect("Select directory")
-    child.sendline("nonexistent_dir")
-    child.expect("Error: No FASTA files found")
+    child.sendline("nonexistent")
+    child.expect("No FASTA files found")
+    child.expect("Change directory")
+    child.sendline("n")
     child.close()
 
 def test_cli_preview(dummy_fasta):
@@ -210,7 +230,7 @@ def test_cli_preview(dummy_fasta):
     child.sendline("en")
     child.expect("Choose mode")
     child.sendline("global")
-    child.expect("Batch mode")
+    child.expect("Run batch mode")
     child.sendline("n")
     child.expect("Select directory")
     child.sendline("test_dir")
@@ -220,16 +240,22 @@ def test_cli_preview(dummy_fasta):
     child.sendline("test2.fasta")
     for _ in range(8):
         child.sendline("")
-    child.expect("Preview")
+    child.expect("Verbose logging")
+    child.sendline("n")
+    child.expect("Preview first 100 bp")
     child.sendline("y")
     child.expect("Seq1: AGC")
     child.expect("Run tutorial")
     child.sendline("n")
+    child.expect("Output file")
+    child.sendline("")
     child.expect("Load config")
     child.sendline("n")
-    child.expect("Save current parameters")
+    child.expect("Save current params")
     child.sendline("n")
-    child.expect("Alignment completed successfully")
+    child.expect("Run with these params")
+    child.sendline("y")
+    child.expect("Success")
     child.close()
     assert os.path.exists("alignment.txt")
     os.remove("alignment.txt")

@@ -21,10 +21,10 @@ from aligner.io_utils import load_sequences, format_alignment, format_msa
 from aligner.msa import multiple_sequence_alignment
 from aligner.scoring import load_scoring_matrix
 
-# зависимости: pip install click rich inquirer pyyaml biopython numpy numba psutil
+# зависимости pip install click rich inquirer pyyaml biopython numpy numba psutil pexpect
 console = Console()
 
-# ascii-арт с цветами
+# ascii-арт genomic aligner
 ASCII_ART = Text("""
                                       ++++## 
                                      =*%*+#%%
@@ -61,17 +61,8 @@ ASCII_ART = Text("""
 | $$__| $| $$$$$$$| $$  | $| $$__/ $| $$ | $$ | $| $| $$_____            
  \$$    $$\$$     | $$  | $$\$$    $| $$ | $$ | $| $$\$$     \           
   \$$$$$$  \$$$$$$$\$$   \$$ \$$$$$$ \$$  \$$  \$$\$$ \$$$$$$$           
-  ______                                                                 
- /      \                                                                
-|  $$$$$$\ ______   ______  __    __  ______  _______   _______  ______  
-| $$___\$$/      \ /      \|  \  |  \/      \|       \ /       \/      \ 
- \$$    \|  $$$$$$|  $$$$$$| $$  | $|  $$$$$$| $$$$$$$|  $$$$$$|  $$$$$$\
- _\$$$$$$| $$    $| $$  | $| $$  | $| $$    $| $$  | $| $$     | $$    $$
-|  \__| $| $$$$$$$| $$__| $| $$__/ $| $$$$$$$| $$  | $| $$_____| $$$$$$$$
- \$$    $$\$$     \\$$    $$\$$    $$\$$     | $$  | $$\$$     \\$$     \
-  \$$$$$$  \$$$$$$$ \$$$$$$$ \$$$$$$  \$$$$$$$\$$   \$$ \$$$$$$$ \$$$$$$$
-                        | $$                                             
-  ______  __ __         | $$                                             
+
+  ______  __ __         |                                        
  /      \|  |  \         \$$                                             
 |  $$$$$$| $$\$$ ______  _______   ______   ______                       
 | $$__| $| $|  \/      \|       \ /      \ /      \                      
@@ -90,98 +81,128 @@ TRANSLATIONS = {
         'welcome': "Welcome to Aligner CLI!",
         'choose_lang': "Choose language (en/ru):",
         'choose_mode': "Choose mode:",
-        'mode_global': "Global (Needleman-Wunsch): Full alignment of entire sequences, suitable for similar genes.",
-        'mode_local': "Local (Smith-Waterman): Best subsequences only, ideal for motif or domain search.",
-        'mode_msa': "MSA: Multiple sequence alignment for 2+ sequences, for phylogenetic or structural analysis.",
-        'select_dir': "Select directory (default: current):",
-        'select_file1': "Select FASTA file for input1:",
-        'select_file2': "Select FASTA file for input2 (pairwise only):",
-        'select_matrix': "Scoring matrix (e.g., BLOSUM62 for proteins, None for default DNA scoring):",
-        'match_score': "Match score (default 1): Value for matching characters. Recommend 1 for DNA, 5 for proteins.",
-        'mismatch_score': "Mismatch score (default -1): Penalty for mismatches. Recommend -1 for DNA, -4 for proteins.",
-        'gap_penalty': "Gap penalty (default -2): Penalty for gaps. Use negative values.",
-        'gap_open': "Gap open penalty (affine, default None): Penalty for starting a gap. Set to enable affine gaps.",
-        'gap_extend': "Gap extend penalty (affine, default None): Penalty for extending a gap.",
-        'subsample': "Subsample first N bases (0 for full): For large files to speed up testing.",
-        'threads': "Number of threads for MSA (default cpu_count):",
-        'clustal': "Output MSA in Clustal format? (y/n)",
-        'verbose': "Enable verbose logging for detailed steps? (y/n)",
-        'preview_seq': "Preview first 100 bases of sequences? (y/n)",
-        'tutorial': "Run tutorial with example alignments? (y/n)",
-        'batch_mode': "Run batch alignment for all FASTA files in directory? (y/n)",
-        'config': "Load configuration from YAML file (path):",
-        'processing': "Processing alignment...",
-        'success': "Alignment completed successfully!",
+        'mode_global': "Global (NW): Full alignment of sequences.",
+        'mode_local': "Local (SW): Align best parts.",
+        'mode_msa': "MSA: Align multiple sequences.",
+        'select_dir': "Select directory:",
+        'select_file1': "Select input1 FASTA:",
+        'select_file2': "Select input2 FASTA:",
+        'select_matrix': "Scoring matrix (None default):",
+        'match_score': "Match score (1 default):",
+        'desc_match_score': "Rewards matching symbols, higher for important matches.",
+        'mismatch_score': "Mismatch score (-1 default):",
+        'desc_mismatch_score': "Penalizes mismatches, lower for strict alignment.",
+        'gap_penalty': "Gap penalty (-2 default):",
+        'desc_gap_penalty': "Penalizes gaps in sequences.",
+        'gap_open': "Gap open (None default):",
+        'desc_gap_open': "Cost to start a gap in affine mode.",
+        'gap_extend': "Gap extend (None default):",
+        'desc_gap_extend': "Cost to extend a gap in affine mode.",
+        'subsample': "Subsample N bases (0 default):",
+        'desc_subsample': "Limit sequences to N bases for testing large files.",
+        'threads': "Threads for MSA:",
+        'desc_threads': "Number of threads for parallel computation in MSA.",
+        'clustal': "Clustal format? (y/n)",
+        'desc_clustal': "Output MSA in Clustal format for compatibility.",
+        'verbose': "Verbose logging? (y/n)",
+        'desc_verbose': "Show detailed logs during execution.",
+        'preview_seq': "Preview 100 bp? (y/n)",
+        'desc_preview_seq': "Show first 100 bases of sequences.",
+        'tutorial': "Run tutorial? (y/n)",
+        'desc_tutorial': "Show examples and param explanations.",
+        'batch_mode': "Batch mode? (y/n)",
+        'desc_batch_mode': "Align all vs all in directory.",
+        'config': "Load config (path):",
+        'processing': "Processing...",
+        'success': "Success!",
         'error': "Error:",
-        'error_msa': "MSA requires a FASTA file with at least 2 sequences.",
-        'error_pairwise': "Pairwise alignment requires two FASTA files.",
-        'error_no_files': "No FASTA files found in directory. Please check or provide files.",
-        'error_invalid_file': "Invalid file selected. Please choose a .fasta or .gz file.",
-        'error_negative': "Penalty values (gap, mismatch, gap_open, gap_extend) must be negative.",
+        'error_msa': "MSA needs 2+ sequences.",
+        'error_pairwise': "Pairwise needs two files.",
+        'error_no_files': "No FASTA files.",
+        'error_invalid_file': "Invalid file.",
+        'error_negative': "Penalties negative.",
+        'error_config': "Invalid config path.",
+        'confirm_run': "Run? (y/n)",
+        'change_dir': "Change dir? (y/n)",
         'time': "Time",
         'memory': "Memory",
         'sec': "sec",
         'mb': "MB",
         'identity': "Identity %",
         'gaps': "Gaps count",
-        'config_load': "Load config from YAML file? (enter path or 'n' for none):",
-        'config_save': "Save current parameters to YAML file? (y/n)",
-        'config_saved': "Configuration saved to {path}"
+        'config_load': "Load config? (path/n):",
+        'config_save': "Save params? (y/n)",
+        'config_saved': "Saved to {path}"
     },
     'ru': {
-        'welcome': "Добро пожаловать в Aligner CLI!",
-        'choose_lang': "Выберите язык (en/ru):",
-        'choose_mode': "Выберите режим:",
-        'mode_global': "Global (Needleman-Wunsch): Полное выравнивание всей последовательности, подходит для похожих генов.",
-        'mode_local': "Local (Smith-Waterman): Только лучшие субпоследовательности, для поиска мотивов или доменов.",
-        'mode_msa': "MSA: Множественное выравнивание для 2+ последовательностей, для филогенетики или структурного анализа.",
-        'select_dir': "Выберите директорию (default: текущая):",
-        'select_file1': "Выберите FASTA-файл для input1:",
-        'select_file2': "Выберите FASTA-файл для input2 (только для pairwise):",
-        'select_matrix': "Scoring matrix (e.g., BLOSUM62 для белков, None для ДНК по умолчанию):",
-        'match_score': "Score за совпадение (default 1): Значение за совпадающие символы. Рекомендуется 1 для ДНК, 5 для белков.",
-        'mismatch_score': "Score за несовпадение (default -1): Штраф за несовпадения. Рекомендуется -1 для ДНК, -4 для белков.",
-        'gap_penalty': "Штраф за gap (default -2): Штраф за пробелы. Используйте отрицательные значения.",
-        'gap_open': "Штраф за открытие gap (affine, default None): Штраф за начало пробела. Установите для включения affine gaps.",
-        'gap_extend': "Штраф за расширение gap (affine, default None): Штраф за продолжение пробела.",
-        'subsample': "Subsample первых N баз (0 для полного): Для больших файлов для ускорения тестирования.",
-        'threads': "Количество потоков для MSA (default cpu_count):",
-        'clustal': "Вывести MSA в формате Clustal? (y/n)",
-        'verbose': "Включить детальный logging для подробных шагов? (y/n)",
-        'preview_seq': "Предпросмотр первых 100 баз последовательностей? (y/n)",
-        'tutorial': "Запустить tutorial с примерами выравниваний? (y/n)",
-        'batch_mode': "Запустить batch-выравнивание для всех FASTA в директории? (y/n)",
-        'config': "Загрузить конфигурацию из YAML файла (путь):",
-        'processing': "Обработка выравнивания...",
-        'success': "Выравнивание успешно завершено!",
+        'welcome': "Добро пожаловать!",
+        'choose_lang': "Язык (en/ru):",
+        'choose_mode': "Режим:",
+        'mode_global': "Global (NW): Полное выравнивание.",
+        'mode_local': "Local (SW): Лучшие части.",
+        'mode_msa': "MSA: Множественное.",
+        'select_dir': "Директория:",
+        'select_file1': "Input1 FASTA:",
+        'select_file2': "Input2 FASTA:",
+        'select_matrix': "Matrix (None default):",
+        'match_score': "Match (1 default):",
+        'desc_match_score': "Награда за совпадения, выше для важных.",
+        'mismatch_score': "Mismatch (-1 default):",
+        'desc_mismatch_score': "Штраф за несовпадения, ниже для строгого.",
+        'gap_penalty': "Gap (-2 default):",
+        'desc_gap_penalty': "Штраф за пробелы в последовательностях.",
+        'gap_open': "Gap open (None default):",
+        'desc_gap_open': "Стоимость открытия gap в affine.",
+        'gap_extend': "Gap extend (None default):",
+        'desc_gap_extend': "Стоимость расширения gap в affine.",
+        'subsample': "Subsample N (0 default):",
+        'desc_subsample': "Ограничить N баз для теста больших файлов.",
+        'threads': "Потоки для MSA:",
+        'desc_threads': "Количество потоков для параллели в MSA.",
+        'clustal': "Clustal? (y/n)",
+        'desc_clustal': "Вывод MSA в Clustal для совместимости.",
+        'verbose': "Verbose? (y/n)",
+        'desc_verbose': "Детальные логи во время работы.",
+        'preview_seq': "Preview 100 bp? (y/n)",
+        'desc_preview_seq': "Показать первые 100 баз последовательностей.",
+        'tutorial': "Tutorial? (y/n)",
+        'desc_tutorial': "Показать примеры и объяснения параметров.",
+        'batch_mode': "Batch? (y/n)",
+        'desc_batch_mode': "Выравнивание все vs все в директории.",
+        'config': "Load config (path):",
+        'processing': "Обработка...",
+        'success': "Успех!",
         'error': "Ошибка:",
-        'error_msa': "Для MSA нужен FASTA-файл с минимум 2 последовательностями.",
-        'error_pairwise': "Для pairwise-выравнивания нужны два FASTA-файла.",
-        'error_no_files': "FASTA-файлы не найдены в директории. Проверьте или предоставьте файлы.",
-        'error_invalid_file': "Выбран неверный файл. Выберите файл .fasta или .gz.",
-        'error_negative': "Штрафы (gap, mismatch, gap_open, gap_extend) должны быть отрицательными.",
+        'error_msa': "MSA 2+ seq.",
+        'error_pairwise': "Pairwise два файла.",
+        'error_no_files': "Нет FASTA.",
+        'error_invalid_file': "Неверный файл.",
+        'error_negative': "Штрафы отрицательны.",
+        'error_config': "Неверный path config.",
+        'confirm_run': "Запустить? (y/n)",
+        'change_dir': "Сменить dir? (y/n)",
         'time': "Время",
         'memory': "Память",
         'sec': "сек",
         'mb': "МБ",
         'identity': "Идентичность %",
-        'gaps': "Количество gaps",
-        'config_load': "Загрузить конфигурацию из YAML? (введите путь или 'n' для пропуска):",
-        'config_save': "Сохранить текущие параметры в YAML? (y/n)",
-        'config_saved': "Конфигурация сохранена в {path}"
+        'gaps': "Gaps",
+        'config_load': "Load config? (path/n):",
+        'config_save': "Save? (y/n)",
+        'config_saved': "Сохранено {path}"
     }
 }
 
 
 def get_fasta_files(directory: str) -> List[str]:
-    # возвращает список fasta/gz файлов в директории
+    # список fasta/gz в dir
     return [f for f in os.listdir(directory) if f.endswith(('.fasta', '.fa', '.gz'))]
 
 
 def validate_file(file_path: str, tr: Dict) -> bool:
-    # проверяет, существует ли файл и является ли он fasta/gz
+    # проверка файла
     if not os.path.exists(file_path):
-        console.print(f"{tr['error']} File {file_path} does not exist.", style="bold red")
+        console.print(f"{tr['error']} {file_path} not exist.", style="bold red")
         return False
     if not file_path.endswith(('.fasta', '.fa', '.gz')):
         console.print(f"{tr['error']} {tr['error_invalid_file']}", style="bold red")
@@ -190,7 +211,7 @@ def validate_file(file_path: str, tr: Dict) -> bool:
 
 
 def validate_params(params: Dict, tr: Dict) -> bool:
-    # проверяет, что штрафы отрицательные
+    # штрафы отрицательны
     for param in ['gap', 'mismatch', 'gap_open', 'gap_extend']:
         if param in params and params[param] is not None and params[param] > 0:
             console.print(f"{tr['error']} {tr['error_negative']}", style="bold red")
@@ -199,14 +220,13 @@ def validate_params(params: Dict, tr: Dict) -> bool:
 
 
 def interactive_wizard() -> tuple[Dict, Dict]:
-    # интерактивный wizard для параметров
+    # wizard для params
     params = {}
     lang = inquirer.prompt([inquirer.List('lang', message=TRANSLATIONS['en']['choose_lang'], choices=['en', 'ru'])])[
         'lang']
     tr = TRANSLATIONS[lang]
     console.print(Panel(tr['welcome'], style="bold blue"))
 
-    # режим с объяснениями
     mode_choices = [
         (tr['mode_global'], 'global'),
         (tr['mode_local'], 'local'),
@@ -214,17 +234,19 @@ def interactive_wizard() -> tuple[Dict, Dict]:
     ]
     params['mode'] = inquirer.prompt([inquirer.List('mode', message=tr['choose_mode'], choices=mode_choices)])['mode']
 
-    # batch mode?
     params['batch'] = inquirer.prompt([inquirer.Confirm('batch', message=tr['batch_mode'], default=False)])['batch']
 
-    # директория и файлы
+    directory = os.getcwd()
     while True:
         directory = inquirer.prompt(
-            [inquirer.Path('dir', message=tr['select_dir'], path_type=inquirer.Path.DIRECTORY, default=os.getcwd())])[
+            [inquirer.Path('dir', message=tr['select_dir'], path_type=inquirer.Path.DIRECTORY, default=directory)])[
             'dir']
         fasta_files = get_fasta_files(directory)
         if not fasta_files and not params['batch']:
             console.print(f"{tr['error']} {tr['error_no_files']}", style="bold red")
+            change = inquirer.prompt([inquirer.Confirm('change', message=tr['change_dir'], default=True)])['change']
+            if not change:
+                sys.exit(1)
             continue
         break
 
@@ -244,28 +266,33 @@ def interactive_wizard() -> tuple[Dict, Dict]:
         params['directory'] = directory
         params['input_files'] = [os.path.join(directory, f) for f in fasta_files]
 
-    # параметры выравнивания
-    params['matrix'] = inquirer.prompt([inquirer.Text('matrix', message=tr['select_matrix'], default='None')])[
-                           'matrix'] or None
-    params['match'] = int(inquirer.prompt([inquirer.Text('match', message=tr['match_score'], default='1')])['match'])
-    params['mismatch'] = int(
-        inquirer.prompt([inquirer.Text('mismatch', message=tr['mismatch_score'], default='-1')])['mismatch'])
-    params['gap'] = int(inquirer.prompt([inquirer.Text('gap', message=tr['gap_penalty'], default='-2')])['gap'])
-    params['gap_open'] = inquirer.prompt([inquirer.Text('gap_open', message=tr['gap_open'], default='None')])[
-                             'gap_open'] or None
-    if params['gap_open'] != 'None':
-        params['gap_open'] = int(params['gap_open'])
-    params['gap_extend'] = inquirer.prompt([inquirer.Text('gap_extend', message=tr['gap_extend'], default='None')])[
-                               'gap_extend'] or None
-    if params['gap_extend'] != 'None':
-        params['gap_extend'] = int(params['gap_extend'])
-    params['subsample'] = int(
-        inquirer.prompt([inquirer.Text('subsample', message=tr['subsample'], default='0')])['subsample'])
+    params['matrix'] = inquirer.prompt([inquirer.Text('matrix', message=tr['select_matrix'], default='None')])['matrix']
+    if params['matrix'] == 'None':
+        params['matrix'] = None
+    try:
+        params['match'] = int(
+            inquirer.prompt([inquirer.Text('match', message=tr['match_score'], default='1')])['match'])
+        params['mismatch'] = int(
+            inquirer.prompt([inquirer.Text('mismatch', message=tr['mismatch_score'], default='-1')])['mismatch'])
+        params['gap'] = int(inquirer.prompt([inquirer.Text('gap', message=tr['gap_penalty'], default='-2')])['gap'])
+        gap_open_input = inquirer.prompt([inquirer.Text('gap_open', message=tr['gap_open'], default='None')])[
+            'gap_open']
+        params['gap_open'] = int(gap_open_input) if gap_open_input != 'None' else None
+        gap_extend_input = inquirer.prompt([inquirer.Text('gap_extend', message=tr['gap_extend'], default='None')])[
+            'gap_extend']
+        params['gap_extend'] = int(gap_extend_input) if gap_extend_input != 'None' else None
+        params['subsample'] = int(
+            inquirer.prompt([inquirer.Text('subsample', message=tr['subsample'], default='0')])['subsample'])
+    except ValueError:
+        console.print("Ошибка: введите число.", style="bold red")
+        sys.exit(1)
+
     if params['mode'] == 'msa':
         params['threads'] = int(
             inquirer.prompt([inquirer.Text('threads', message=tr['threads'], default=str(os.cpu_count()))])['threads'])
         params['clustal'] = inquirer.prompt([inquirer.Confirm('clustal', message=tr['clustal'], default=False)])[
             'clustal']
+
     params['verbose'] = inquirer.prompt([inquirer.Confirm('verbose', message=tr['verbose'], default=False)])['verbose']
     params['preview'] = inquirer.prompt([inquirer.Confirm('preview', message=tr['preview_seq'], default=False)])[
         'preview']
@@ -274,41 +301,68 @@ def interactive_wizard() -> tuple[Dict, Dict]:
     params['output'] = inquirer.prompt([inquirer.Text('output', message="Output file:", default="alignment.txt")])[
         'output']
 
-    # config load/save
-    config_load = inquirer.prompt([inquirer.Text('config_load', message=tr['config_load'], default='n')])['config_load']
-    if config_load != 'n':
-        if os.path.exists(config_load):
-            params = load_config(config_load)
-            params['lang'] = lang  # сохраняем язык
-            tr = TRANSLATIONS[lang]
+    while True:
+        config_load = inquirer.prompt([inquirer.Text('config_load', message=tr['config_load'], default='n')])[
+            'config_load']
+        if config_load == 'n':
+            break
+        if os.path.isfile(config_load):
+            try:
+                params = load_config(config_load)
+                params['lang'] = lang
+                tr = TRANSLATIONS[lang]
+                break
+            except (yaml.YAMLError, PermissionError) as e:
+                console.print(f"{tr['error']} Invalid config: {str(e)}.", style="bold red")
         else:
-            console.print(f"{tr['error']} Config file {config_load} not found.", style="bold red")
-            sys.exit(1)
+            console.print(f"{tr['error']} {tr['error_config']}", style="bold red")
+        retry = inquirer.prompt([inquirer.Confirm('retry', message="Retry? (y/n)", default=True)])['retry']
+        if not retry:
+            break
+
     if inquirer.prompt([inquirer.Confirm('config_save', message=tr['config_save'], default=False)])['config_save']:
-        save_config(params, 'config.yaml')
+        save_config(params, 'config.yaml', tr)
 
     if not validate_params(params, tr):
         sys.exit(1)
+
+    confirm = inquirer.prompt([inquirer.Confirm('confirm', message=tr['confirm_run'], default=True)])['confirm']
+    if not confirm:
+        sys.exit(0)
 
     return params, tr
 
 
 def run_tutorial(tr: Dict):
-    # tutorial с примерами выравниваний
+    # tutorial с примерами и описаниями params
+    param_desc = (
+        f"{tr['match_score']}: {tr['desc_match_score']}\n"
+        f"{tr['mismatch_score']}: {tr['desc_mismatch_score']}\n"
+        f"{tr['gap_penalty']}: {tr['desc_gap_penalty']}\n"
+        f"{tr['gap_open']}: {tr['desc_gap_open']}\n"
+        f"{tr['gap_extend']}: {tr['desc_gap_extend']}\n"
+        f"{tr['subsample']}: {tr['desc_subsample']}\n"
+        f"{tr['threads']}: {tr['desc_threads']}\n"
+        f"{tr['clustal']}: {tr['desc_clustal']}\n"
+        f"{tr['verbose']}: {tr['desc_verbose']}\n"
+        f"{tr['preview_seq']}: {tr['desc_preview_seq']}\n"
+        f"{tr['batch_mode']}: {tr['desc_batch_mode']}"
+    )
+    console.print(Panel(param_desc, title="Param descriptions", style="bold yellow"))
     console.print(Panel(
-        "Example 1: Global alignment (Needleman-Wunsch)\n"
-        "Sequences: 'AGC' and 'ACGC'\n"
+        "Example 1: Global\n"
+        "Seq: 'AGC' 'ACGC'\n"
         "Score: 1\n"
         "A-GC\n"
         " | |\n"
         "ACGC\n\n"
-        "Example 2: Local alignment (Smith-Waterman)\n"
-        "Sequences: 'ATGC' and 'TGCA'\n"
+        "Example 2: Local\n"
+        "Seq: 'ATGC' 'TGCA'\n"
         "Score: 3\n"
         "TGC\n"
         "|||\n"
         "TGC\n\n"
-        "Example 3: MSA (Multiple Sequence Alignment)\n"
+        "Example 3: MSA\n"
         "Seq1: A-GC\n"
         "Seq2: ACGC\n"
         "Seq3: AGGC",
@@ -317,20 +371,20 @@ def run_tutorial(tr: Dict):
 
 
 def load_config(path: str) -> Dict:
-    # загружаем конфигурацию из yaml
+    # load yaml config
     with open(path, 'r') as f:
         return yaml.safe_load(f)
 
 
-def save_config(params: Dict, path: str):
-    # сохраняем параметры в yaml
+def save_config(params: Dict, path: str, tr: Dict):
+    # save params to yaml
     with open(path, 'w') as f:
         yaml.dump(params, f)
-    console.print(f"{TRANSLATIONS[params['lang']]['config_saved'].format(path=path)}", style="green")
+    console.print(f"{tr['config_saved'].format(path=path)}", style="green")
 
 
 def print_alignment_table(align1: str, align2: str, tr: Dict):
-    # таблица для pairwise выравнивания с цветами
+    # таблица выравнивания с цветами
     table = Table(title="Alignment")
     table.add_column("Seq1", style="cyan")
     table.add_column("Matches", style="magenta")
@@ -343,7 +397,7 @@ def print_alignment_table(align1: str, align2: str, tr: Dict):
 
 
 def compute_stats(align1: str, align2: str) -> Dict:
-    # статистика: % идентичности, gaps
+    # статистика идентичность gaps
     matches = sum(1 for a, b in zip(align1, align2) if a == b and a != '-')
     length = len(align1)
     gaps = align1.count('-') + align2.count('-')
@@ -352,7 +406,7 @@ def compute_stats(align1: str, align2: str) -> Dict:
 
 
 def run_batch_alignment(directory: str, params: Dict, tr: Dict) -> str:
-    # batch-режим: pairwise все-против-всех
+    # batch pairwise all vs all
     fasta_files = get_fasta_files(directory)
     if len(fasta_files) < 2:
         console.print(f"{tr['error']} {tr['error_pairwise']}", style="bold red")
@@ -370,7 +424,7 @@ def run_batch_alignment(directory: str, params: Dict, tr: Dict) -> str:
                 seq2 = load_sequences(os.path.join(directory, file2))[0]
                 if params['subsample'] > 0:
                     seq2 = seq2[:params['subsample']]
-                console.print(f"\nProcessing: {file1} vs {file2}", style="bold blue")
+                console.print(f"Processing: {file1} vs {file2}", style="bold blue")
                 if params['mode'] == 'global':
                     align1, align2, score = needleman_wunsch(
                         seq1, seq2, params['match'], params['mismatch'], params['gap'],
@@ -392,19 +446,23 @@ def run_batch_alignment(directory: str, params: Dict, tr: Dict) -> str:
 @click.option('--config', type=str, help=TRANSLATIONS['en']['config'])
 @click.pass_context
 def cli(ctx, config):
-    # дефолт: wizard с ascii-арт
+    # дефолт wizard с арт
     console.print(ASCII_ART)
     if config:
-        if os.path.exists(config):
-            params = load_config(config)
-            tr = TRANSLATIONS[params.get('lang', 'en')]
-            if not validate_params(params, tr):
+        if os.path.isfile(config):
+            try:
+                params = load_config(config)
+                tr = TRANSLATIONS[params.get('lang', 'en')]
+                if not validate_params(params, tr):
+                    sys.exit(1)
+                if params.get('tutorial', False):
+                    run_tutorial(tr)
+                run_alignment(params, tr)
+            except (yaml.YAMLError, PermissionError) as e:
+                console.print(f"{tr['error']} Invalid config: {str(e)}.", style="bold red")
                 sys.exit(1)
-            if params.get('tutorial', False):
-                run_tutorial(tr)
-            run_alignment(params, tr)
         else:
-            console.print(f"Error: Config file {config} not found.", style="bold red")
+            console.print("Error: Config not file.", style="bold red")
             sys.exit(1)
     elif ctx.invoked_subcommand is None:
         params, tr = interactive_wizard()
@@ -418,8 +476,8 @@ def cli(ctx, config):
 @cli.command(name='global')
 @click.option('--input1', type=str, help=TRANSLATIONS['en']['select_file1'])
 @click.option('--input2', type=str, help=TRANSLATIONS['en']['select_file2'])
-@click.option('--directory', type=str, help="Directory for batch alignment")
-@click.option('--output', default="alignment.txt", help="Output file")
+@click.option('--directory', type=str, help="Dir for batch")
+@click.option('--output', default="alignment.txt", help="Output")
 @click.option('--match', type=int, default=1, help=TRANSLATIONS['en']['match_score'])
 @click.option('--mismatch', type=int, default=-1, help=TRANSLATIONS['en']['mismatch_score'])
 @click.option('--gap', type=int, default=-2, help=TRANSLATIONS['en']['gap_penalty'])
@@ -433,7 +491,7 @@ def cli(ctx, config):
 @click.option('--lang', default='en', type=click.Choice(['en', 'ru']), help=TRANSLATIONS['en']['choose_lang'])
 def global_align(input1, input2, directory, output, match, mismatch, gap, gap_open, gap_extend, matrix, subsample,
                  preview, verbose, batch, lang):
-    # subcommand для global выравнивания (переименовано из 'global' во избежание конфликта с ключевым словом)
+    # global subcommand
     tr = TRANSLATIONS[lang]
     params = {
         'mode': 'global', 'input1': input1, 'input2': input2, 'directory': directory, 'output': output,
@@ -441,7 +499,7 @@ def global_align(input1, input2, directory, output, match, mismatch, gap, gap_op
         'matrix': matrix, 'subsample': subsample, 'preview': preview, 'verbose': verbose, 'batch': batch, 'lang': lang
     }
     if batch and not directory:
-        console.print(f"{tr['error']} Directory required for batch mode.", style="bold red")
+        console.print(f"{tr['error']} Dir for batch.", style="bold red")
         sys.exit(1)
     if not batch and (not input1 or not input2):
         console.print(f"{tr['error']} {tr['error_pairwise']}", style="bold red")
@@ -454,8 +512,8 @@ def global_align(input1, input2, directory, output, match, mismatch, gap, gap_op
 @cli.command()
 @click.option('--input1', type=str, help=TRANSLATIONS['en']['select_file1'])
 @click.option('--input2', type=str, help=TRANSLATIONS['en']['select_file2'])
-@click.option('--directory', type=str, help="Directory for batch alignment")
-@click.option('--output', default="alignment.txt", help="Output file")
+@click.option('--directory', type=str, help="Dir for batch")
+@click.option('--output', default="alignment.txt", help="Output")
 @click.option('--match', type=int, default=1, help=TRANSLATIONS['en']['match_score'])
 @click.option('--mismatch', type=int, default=-1, help=TRANSLATIONS['en']['mismatch_score'])
 @click.option('--gap', type=int, default=-2, help=TRANSLATIONS['en']['gap_penalty'])
@@ -466,7 +524,7 @@ def global_align(input1, input2, directory, output, match, mismatch, gap, gap_op
 @click.option('--batch', is_flag=True, help=TRANSLATIONS['en']['batch_mode'])
 @click.option('--lang', default='en', type=click.Choice(['en', 'ru']), help=TRANSLATIONS['en']['choose_lang'])
 def local(input1, input2, directory, output, match, mismatch, gap, matrix, subsample, preview, verbose, batch, lang):
-    # subcommand для local выравнивания
+    # local subcommand
     tr = TRANSLATIONS[lang]
     params = {
         'mode': 'local', 'input1': input1, 'input2': input2, 'directory': directory, 'output': output,
@@ -474,7 +532,7 @@ def local(input1, input2, directory, output, match, mismatch, gap, matrix, subsa
         'preview': preview, 'verbose': verbose, 'batch': batch, 'lang': lang
     }
     if batch and not directory:
-        console.print(f"{tr['error']} Directory required for batch mode.", style="bold red")
+        console.print(f"{tr['error']} Dir for batch.", style="bold red")
         sys.exit(1)
     if not batch and (not input1 or not input2):
         console.print(f"{tr['error']} {tr['error_pairwise']}", style="bold red")
@@ -486,7 +544,7 @@ def local(input1, input2, directory, output, match, mismatch, gap, matrix, subsa
 
 @cli.command()
 @click.option('--input1', type=str, help=TRANSLATIONS['en']['select_file1'])
-@click.option('--output', default="alignment.txt", help="Output file")
+@click.option('--output', default="alignment.txt", help="Output")
 @click.option('--match', type=int, default=1, help=TRANSLATIONS['en']['match_score'])
 @click.option('--mismatch', type=int, default=-1, help=TRANSLATIONS['en']['mismatch_score'])
 @click.option('--gap', type=int, default=-2, help=TRANSLATIONS['en']['gap_penalty'])
@@ -501,7 +559,7 @@ def local(input1, input2, directory, output, match, mismatch, gap, matrix, subsa
 @click.option('--lang', default='en', type=click.Choice(['en', 'ru']), help=TRANSLATIONS['en']['choose_lang'])
 def msa(input1, output, match, mismatch, gap, gap_open, gap_extend, matrix, subsample, threads, clustal, preview,
         verbose, lang):
-    # subcommand для msa
+    # msa subcommand
     tr = TRANSLATIONS[lang]
     params = {
         'mode': 'msa', 'input1': input1, 'output': output, 'match': match, 'mismatch': mismatch, 'gap': gap,
@@ -516,8 +574,30 @@ def msa(input1, output, match, mismatch, gap, gap_open, gap_extend, matrix, subs
     run_alignment(params, tr)
 
 
+@cli.command(name='help')
+@click.option('--lang', default='en', type=click.Choice(['en', 'ru']), help=TRANSLATIONS['en']['choose_lang'])
+def help_cmd(lang):
+    # help subcommand for param desc
+    tr = TRANSLATIONS[lang]
+    desc = (
+        f"{tr['match_score']}: {tr['desc_match_score']}\n"
+        f"{tr['mismatch_score']}: {tr['desc_mismatch_score']}\n"
+        f"{tr['gap_penalty']}: {tr['desc_gap_penalty']}\n"
+        f"{tr['gap_open']}: {tr['desc_gap_open']}\n"
+        f"{tr['gap_extend']}: {tr['desc_gap_extend']}\n"
+        f"{tr['subsample']}: {tr['desc_subsample']}\n"
+        f"{tr['threads']}: {tr['desc_threads']}\n"
+        f"{tr['clustal']}: {tr['desc_clustal']}\n"
+        f"{tr['verbose']}: {tr['desc_verbose']}\n"
+        f"{tr['preview_seq']}: {tr['desc_preview_seq']}\n"
+        f"{tr['tutorial']}: {tr['desc_tutorial']}\n"
+        f"{tr['batch_mode']}: {tr['desc_batch_mode']}"
+    )
+    console.print(Panel(desc, title="Parameters help", style="bold yellow"))
+
+
 def run_alignment(params: Dict, tr: Dict):
-    # выполнение выравнивания
+    # запуск выравнивания
     if params['verbose']:
         logging.basicConfig(level=logging.DEBUG, format='%(asctime)s - %(levelname)s - %(message)s')
     else:
@@ -536,7 +616,7 @@ def run_alignment(params: Dict, tr: Dict):
         sequences = load_sequences(params['input1'])
         if params['subsample'] > 0:
             sequences = [seq[:params['subsample']] for seq in sequences]
-            console.print(tr['subsampled'].format(params['subsample']), style="yellow")
+            console.print(f"Subsampled to {params['subsample']} bases.", style="yellow")
 
         if params.get('preview', False):
             console.print(
@@ -565,7 +645,7 @@ def run_alignment(params: Dict, tr: Dict):
                 if params['subsample'] > 0:
                     seq1 = seq1[:params['subsample']]
                     seq2 = seq2[:params['subsample']]
-                    console.print(tr['subsampled'].format(params['subsample']), style="yellow")
+                    console.print(f"Subsampled to {params['subsample']} bases.", style="yellow")
                 if params['mode'] == 'global':
                     align1, align2, score = needleman_wunsch(
                         seq1, seq2, params['match'], params['mismatch'], params['gap'],

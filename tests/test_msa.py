@@ -18,7 +18,7 @@ def test_multiple_sequence_alignment_with_matrix():
 
 @pytest.mark.parametrize("seqs", [
     (["A"]),
-     ([]),
+    ([]),
 ])
 def test_msa_error(seqs):
     with pytest.raises(MSAError):
@@ -28,3 +28,9 @@ def test_msa_identical():
     seqs = ["AAA", "AAA", "AAA"]
     aligned = multiple_sequence_alignment(seqs)
     assert all(a == "AAA" for a in aligned)
+
+def test_msa_with_gaps():
+    seqs = ["A", "AA", "AAA"]
+    aligned = multiple_sequence_alignment(seqs)
+    assert len(aligned) == 3
+    assert all(len(a) == 3 for a in aligned)
